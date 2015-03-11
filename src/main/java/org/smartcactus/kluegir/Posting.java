@@ -6,6 +6,8 @@ import java.util.List;
 * User: dietz
 * Date: 3/5/15
 * Time: 5:00 PM
+ *
+ * @deprecated use PostingFieldTerm
 */
 public class Posting<DocId, Position, FieldId> {
     public DocId doc;

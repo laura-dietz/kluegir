@@ -46,12 +46,12 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
         }
 
 
-        public List<TermPosting<TermId, DocId, Position, FieldId>> get(List<TermId> query) {
-            List<TermPosting<TermId, DocId, Position, FieldId>> result = new ArrayList<TermPosting<TermId, DocId, Position, FieldId>>();
+        public List<KeyList<TermId, Posting<DocId, Position, FieldId>>> get(List<TermId> query) {
+            List<KeyList<TermId, Posting<DocId, Position, FieldId>>> result = new ArrayList<KeyList<TermId, Posting<DocId, Position, FieldId>>>();
             for(TermId q:query){
                 ArrayList<Posting<DocId, Position, FieldId>> postings = index.get(q);
                 if(postings != null) {
-                    result.add(new TermPosting<TermId, DocId, Position, FieldId>(q, postings));
+                    result.add(new KeyList<TermId, Posting<DocId, Position, FieldId>>(q, postings));
                 }
             }
             return result;
@@ -133,14 +133,14 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
 
         }
 
-        private List<PostingFieldTerm<TermId, DocId, Position, FieldId>> merged(List<TermPosting<TermId, DocId, Position, FieldId>> postingLists) {
+        private List<PostingFieldTerm<TermId, DocId, Position, FieldId>> merged(List<KeyList<TermId, Posting<DocId, Position, FieldId>>> postingLists) {
             List<PostingFieldTerm<TermId, DocId, Position, FieldId>> results = new ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>();
 
 //            Step 1: Find smallest document, and fetch all term-posting lists for that document
 
             List<CachedIterator<Posting<DocId, Position, FieldId>>> iterators = new ArrayList<CachedIterator<Posting<DocId, Position, FieldId>>>();
-            for(TermPosting<TermId, DocId, Position, FieldId> list: postingLists){
-                iterators.add(new CachedIterator<Posting<DocId, Position, FieldId>>(list.posting.iterator()));
+            for(KeyList<TermId, Posting<DocId, Position, FieldId>> list: postingLists){
+                iterators.add(new CachedIterator<Posting<DocId, Position, FieldId>>(list.values.iterator()));
             }
             CachedIteratorHeap<Posting<DocId, Position, FieldId>> iteratorHeap =
                     new CachedIteratorHeap<Posting<DocId, Position, FieldId>>(iterators,
