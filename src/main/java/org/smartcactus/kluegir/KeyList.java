@@ -8,11 +8,11 @@ import java.util.List;
 * Time: 5:00 PM
 */
 public class KeyList<Key, Elem> {
-    public Key term;
-    public List<Elem> values;
+    public Key _1;
+    public List<Elem> _2;
 
-    public KeyList(Key term, List<Elem> values) {
-        this.term = term;
-        this.values = values;
+    public KeyList(Key _1, List<Elem> _2) {
+        this._1 = _1;
+        this._2 = _2;
     }
 }

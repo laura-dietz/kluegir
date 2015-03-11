@@ -140,7 +140,7 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
 
             List<CachedIterator<Posting<DocId, Position, FieldId>>> iterators = new ArrayList<CachedIterator<Posting<DocId, Position, FieldId>>>();
             for(KeyList<TermId, Posting<DocId, Position, FieldId>> list: postingLists){
-                iterators.add(new CachedIterator<Posting<DocId, Position, FieldId>>(list.values.iterator()));
+                iterators.add(new CachedIterator<Posting<DocId, Position, FieldId>>(list._2.iterator()));
             }
             CachedIteratorHeap<Posting<DocId, Position, FieldId>> iteratorHeap =
                     new CachedIteratorHeap<Posting<DocId, Position, FieldId>>(iterators,
@@ -166,7 +166,7 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
                 for (Pair<Integer, Posting<DocId, Position, FieldId>> minEntry : minEntries) {
 
                     // recode postingList to include term as well as fields
-                    TermId term = postingLists.get(minEntry._1).term;
+                    TermId term = postingLists.get(minEntry._1)._1;
                     Posting<DocId, Position, FieldId> posting = minEntry._2;
                     for (AnnotatedPos<Position, FieldId> p : posting.positions) {
                         ArrayList<PostingFieldTerm.TermField<TermId, FieldId>> termFields = new ArrayList<PostingFieldTerm.TermField<TermId, FieldId>>();

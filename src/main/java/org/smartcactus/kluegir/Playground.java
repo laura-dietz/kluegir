@@ -34,7 +34,7 @@ public class Playground {
 //        List<TermPosting<String, Integer, Integer, String>> termPostings = index.get(query);
 //        for(TermPosting<String, Integer, Integer, String> entry : termPostings){
 //            System.out.println("\n\n\n");
-//            System.out.println("entry.term = " + entry.term);
+//            System.out.println("entry._1 = " + entry._1);
 //            for(Posting<Integer, Integer, String> p:entry.posting) {
 //                System.out.println("p.doc = " + p.doc);
 //                System.out.print("p.positions = ");
