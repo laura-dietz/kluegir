@@ -26,32 +26,32 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
     }
 
     public KluegirReadableIndex<DocId, TermId, Position, FieldId> produceIndex(Comparator<DocId> docIdComparator, Comparator<Position> positionComparator) {
-        Map<TermId, ArrayList<Posting<DocId, Position, FieldId>>> index = builder.produceIndex().index;
+        Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index = builder.produceIndex().index;
         return new KluegirReadableIndex<DocId, TermId, Position, FieldId>(index, docIdComparator, positionComparator);
     }
 
 
     public static class KluegirReadableIndex<DocId, TermId, Position, FieldId> {
 
-//        private final Map<TermId, ArrayList<Posting<DocId, Position, FieldId>>> index2;
-        private final Map<TermId, ArrayList<Posting<DocId, Position, FieldId>>> index;
+//        private final Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index2;
+        private final Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index;
         private final Comparator<DocId> docIdComparator;
         private final Comparator<Position> positionComparator;
 
 
-        public KluegirReadableIndex(Map<TermId, ArrayList<Posting<DocId, Position, FieldId>>> index, Comparator<DocId> docIdComparator, Comparator<Position> positionComparator) {
+        public KluegirReadableIndex(Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index, Comparator<DocId> docIdComparator, Comparator<Position> positionComparator) {
             this.index = index;
             this.docIdComparator = docIdComparator;
             this.positionComparator = positionComparator;
         }
 
 
-        public List<KeyList<TermId, Posting<DocId, Position, FieldId>>> get(List<TermId> query) {
-            List<KeyList<TermId, Posting<DocId, Position, FieldId>>> result = new ArrayList<KeyList<TermId, Posting<DocId, Position, FieldId>>>();
+        public List<KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>> get(List<TermId> query) {
+            List<KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>> result = new ArrayList<KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>>();
             for(TermId q:query){
-                ArrayList<Posting<DocId, Position, FieldId>> postings = index.get(q);
+                ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>> postings = index.get(q);
                 if(postings != null) {
-                    result.add(new KeyList<TermId, Posting<DocId, Position, FieldId>>(q, postings));
+                    result.add(new KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>(q, postings));
                 }
             }
             return result;
@@ -84,7 +84,38 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
             }
         }
 
-        static class CachedIteratorHeap<Elem>{
+        static interface FilterFun<Elem>{
+            public boolean accept(Elem elem);
+        }
+
+        static class CachedIteratorHeapWrappedFilter<Elem> implements IteratorHeap<Elem>{
+            private final IteratorHeap<Elem> heap;
+            private final FilterFun<List<Pair<Integer, Elem>>> filter;
+
+            public CachedIteratorHeapWrappedFilter(IteratorHeap<Elem> heap,FilterFun<List<Pair<Integer, Elem>>> filter) {
+                this.heap = heap;
+                this.filter = filter;
+            }
+
+            public List<Pair<Integer, Elem>> advanceMin(){
+                List<Pair<Integer, Elem>> minPairs = heap.advanceMin();
+                while(minPairs != null && !filter.accept(minPairs)){
+                    minPairs = heap.advanceMin();
+                }
+                return minPairs;
+            }
+        }
+
+        static interface IteratorHeap<Elem>{
+            /**
+             * returns the 'minimum' element from the heap, along with all its 'equal' elements. Minimum and equal as defined by the comparator.
+             *
+             * @return null if heap is empty (i.e. all elements are consumed)
+             */
+            public List<Pair<Integer, Elem>> advanceMin();
+        }
+
+        static class CachedIteratorHeap<Elem> implements IteratorHeap<Elem>{
             private final List<CachedIterator<Elem>> iterators;
             private final Comparator<Elem> cmp;
             private int minIter = 0;
@@ -133,27 +164,37 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
 
         }
 
-        private List<PostingFieldTerm<TermId, DocId, Position, FieldId>> merged(List<KeyList<TermId, Posting<DocId, Position, FieldId>>> postingLists) {
+        private IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> filter(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> heap, final List<TermId> query, final Set<TermId> allTermPolicy, final Set<TermId> orTermPolicy) {
+            final CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>> heapWithFilter =
+                    new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
+                            heap, new FilterFun<List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>>>() {
+
+                public boolean accept(List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>> postingsforDoc) {
+                    int foundAnd = 0;
+                    int foundOr = 0;
+                    for (Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>> pair : postingsforDoc) {
+                        final TermId termId = query.get(pair._1);
+                        if (allTermPolicy.contains(termId)) foundAnd++;
+                        if (orTermPolicy.contains(termId)) foundOr++;
+
+                        if (foundOr > 0 || foundAnd >= allTermPolicy.size()) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            });
+
+            return heapWithFilter;
+        }
+
+        private List<PostingFieldTerm<TermId, DocId, Position, FieldId>> merged(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> iteratorHeap, List<TermId> query) {
             List<PostingFieldTerm<TermId, DocId, Position, FieldId>> results = new ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>();
-
-//            Step 1: Find smallest document, and fetch all term-posting lists for that document
-
-            List<CachedIterator<Posting<DocId, Position, FieldId>>> iterators = new ArrayList<CachedIterator<Posting<DocId, Position, FieldId>>>();
-            for(KeyList<TermId, Posting<DocId, Position, FieldId>> list: postingLists){
-                iterators.add(new CachedIterator<Posting<DocId, Position, FieldId>>(list._2.iterator()));
-            }
-            CachedIteratorHeap<Posting<DocId, Position, FieldId>> iteratorHeap =
-                    new CachedIteratorHeap<Posting<DocId, Position, FieldId>>(iterators,
-                            new Comparator<Posting<DocId, Position, FieldId>>() {
-                                public int compare(Posting<DocId, Position, FieldId> o1, Posting<DocId, Position, FieldId> o2) {
-                                    return docIdComparator.compare(o1.doc, o2.doc);
-                                }
-                            });
 
 
             while(true) {
 
-                List<Pair<Integer, Posting<DocId, Position, FieldId>>> minEntries = iteratorHeap.advanceMin();
+                List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>> minEntries = iteratorHeap.advanceMin();
 
                 if (minEntries == null || minEntries.isEmpty()) {
                     return results;
@@ -163,18 +204,17 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
 
 //            Step2: Transcode all term-postinglists to include term with field information
                 List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>> pList = new ArrayList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>>();
-                for (Pair<Integer, Posting<DocId, Position, FieldId>> minEntry : minEntries) {
+                for (Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>> minEntry : minEntries) {
 
                     // recode postingList to include term as well as fields
-                    TermId term = postingLists.get(minEntry._1)._1;
-                    Posting<DocId, Position, FieldId> posting = minEntry._2;
-                    for (AnnotatedPos<Position, FieldId> p : posting.positions) {
-                        ArrayList<PostingFieldTerm.TermField<TermId, FieldId>> termFields = new ArrayList<PostingFieldTerm.TermField<TermId, FieldId>>();
-                        for (FieldId field : p.fields) {
-                            termFields.add(new PostingFieldTerm.TermField<TermId, FieldId>(field, term));
-                        }
-                        pList.add(new AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>(p.pos, termFields));
-                    }
+                    PostingFieldTerm<TermId, DocId, Position, FieldId> posting = minEntry._2;
+                    pList.addAll(posting.positions);
+//                    for (AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> p : posting.positions) {
+
+//                        ArrayList<PostingFieldTerm.TermField<TermId, FieldId>> termFields = p.fields;
+//                        pList.add(new AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>(p.pos, termFields));
+                        // todo merge-sort
+//                    }
                 }
 
                 Collections.sort(pList, new Comparator<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>>() {
@@ -198,19 +238,34 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
             }
         }
 
-        public List<PostingFieldTerm<TermId, DocId, Position, FieldId>> getMerged(List<TermId> query) {
-            return merged(get(query));
+        private CachedIteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> setupPostingListHeap(List<KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>> postingLists) {
+            List<CachedIterator<PostingFieldTerm<TermId, DocId, Position, FieldId>>> iterators = new ArrayList<CachedIterator<PostingFieldTerm<TermId, DocId, Position, FieldId>>>();
+            for(KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>> list: postingLists){
+                iterators.add(new CachedIterator<PostingFieldTerm<TermId, DocId, Position, FieldId>>(list._2.iterator()));
+            }
+            return new CachedIteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>>(iterators,
+                    new Comparator<PostingFieldTerm<TermId, DocId, Position, FieldId>>() {
+                        public int compare(PostingFieldTerm<TermId, DocId, Position, FieldId> o1, PostingFieldTerm<TermId, DocId, Position, FieldId> o2) {
+                            return docIdComparator.compare(o1.doc, o2.doc);
+                        }
+                    });
+        }
+
+        public List<PostingFieldTerm<TermId, DocId, Position, FieldId>> getMerged(List<TermId> query, Set<TermId> andPolicy, Set<TermId> orPolicy) {
+            final List<KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>> postingLists = get(query);
+            IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> iteratorHeap = setupPostingListHeap(postingLists);
+            return merged(filter(iteratorHeap, query, andPolicy, orPolicy), query);
         }
     }
 
 
     public class KluegirIndex {
-        private Map<TermId, ArrayList<Posting<DocId, Position, FieldId>>> index = new HashMap<TermId, ArrayList<Posting<DocId, Position, FieldId>>>();
+        private Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index = new HashMap<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>>();
 
-        public void append(TermId term, DocId doc, List<AnnotatedPos<Position, FieldId>> positions) {
-            if (!index.containsKey(term)) index.put(term, new ArrayList<Posting<DocId, Position, FieldId>>());
+        public void append(TermId term, DocId doc, List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> positions) {
+            if (!index.containsKey(term)) index.put(term, new ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>());
 
-            index.get(term).add(new Posting<DocId, Position, FieldId>(doc, positions));
+            index.get(term).add(new PostingFieldTerm<TermId, DocId, Position, FieldId>(doc, positions));
         }
     }
 
@@ -233,15 +288,14 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
                 indexBuilder.put(term, new PostingBuilder());
             }
 
-            indexBuilder.get(term).append(pos,field);;
+            indexBuilder.get(term).append(pos,new PostingFieldTerm.TermField<TermId,FieldId>(field, term));
         }
 
         public void produce(KluegirIndex index){
             if(dead) throw new RuntimeException("KluegirStructBuilder for "+docId+" is already dead.");
 
             for(Map.Entry<TermId,PostingBuilder> entry: indexBuilder.entrySet()) {
-                PostingBuilder value = entry.getValue();
-                index.append(entry.getKey(), docId, (List<AnnotatedPos<Position,FieldId>>) value.produce());
+                index.append(entry.getKey(), docId, (List<AnnotatedPos<Position,PostingFieldTerm.TermField<TermId,FieldId>>>) entry.getValue().produce());
             }
 
             dead = true;
@@ -250,24 +304,24 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
     }
 
     public class PostingBuilder {
-        private LinkedList<AnnotatedPos<Position, FieldId>> positions = new LinkedList<AnnotatedPos<Position, FieldId>>();
+        private LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> positions = new LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>>();
         private boolean dead = false;
 
-        public void append(Position pos, FieldId field) {
+        public void append(Position pos, PostingFieldTerm.TermField<TermId,FieldId> termfield) {
             if(dead) throw new RuntimeException("PostingBuilder is already dead.");
 
             if(!positions.isEmpty() && positions.getLast().pos.equals(pos)){
-                positions.getLast().fields.add(field);
+                positions.getLast().fields.add(termfield);
             } else {
-                positions.add(new AnnotatedPos(pos,field));
+                positions.add(new AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>(pos,termfield));
             }
         }
 
-        public List<AnnotatedPos<Position, FieldId>> produce() {
+        public List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> produce() {
             if(dead) throw new RuntimeException("PostingBuilder is already dead.");
 
-            List<AnnotatedPos<Position, FieldId>> result = positions;
-            positions = new LinkedList<AnnotatedPos<Position, FieldId>>();
+            List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> result = positions;
+            positions = new LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>>();
             dead = true;
             return result;
         }

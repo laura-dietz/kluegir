@@ -7,10 +7,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
+import java.util.*;
 
 /**
  * User: dietz
@@ -46,8 +43,17 @@ public class Playground {
 //            }
 //        }
 
+
+        final HashSet<String> andPolicy = new HashSet<String>();
+        andPolicy.add("raspberry");
+        andPolicy.add("pi");
+
+        final HashSet<String> orPolicy = new HashSet<String>();
+//        orPolicy.add("raspberry");
+//        orPolicy.add("pi");
+
         // List documents that contain all terms
-        List<PostingFieldTerm<String, Integer, Integer, String>>  merged = index.getMerged(query);
+        List<PostingFieldTerm<String, Integer, Integer, String>>  merged = index.getMerged(query, andPolicy, orPolicy);
 
 
 
