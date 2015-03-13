@@ -83,17 +83,27 @@ public class KluegirStruct<DocId,TermId,Position,FieldId> {
             if(!positions.isEmpty() && positions.getLast().pos.equals(pos)){
                 positions.getLast().fields.add(termfield);
             } else {
-                positions.add(new AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>(pos,termfield));
+                ArrayList<PostingFieldTerm.TermField<TermId,FieldId>> fields = new ArrayList<PostingFieldTerm.TermField<TermId, FieldId>>();
+                fields.add(termfield);
+                positions.add(new AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>(pos,fields));
             }
+        }
+
+        private List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> makeImmutable(LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>> positions) {
+            LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> immutablePositions = new LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>>();
+            for(AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>> p: positions){
+                immutablePositions.add(p.produce());
+            }
+            return Collections.unmodifiableList(immutablePositions);
         }
 
         public List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> produce() {
             if(dead) throw new RuntimeException("PostingBuilder is already dead.");
 
-            List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> result = positions;
+            List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>> immutablePositions = makeImmutable(positions);
             positions = new LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId,FieldId>>>();
             dead = true;
-            return result;
+            return immutablePositions;
         }
 
     }

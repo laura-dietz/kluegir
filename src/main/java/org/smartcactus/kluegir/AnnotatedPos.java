@@ -1,6 +1,8 @@
 package org.smartcactus.kluegir;
 
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 
 /**
 * User: dietz
@@ -9,18 +11,22 @@ import java.util.ArrayList;
 */
 public class AnnotatedPos<Position, FieldId> {
     public Position pos;
-    public ArrayList<FieldId> fields = new ArrayList<FieldId>();
+    public List<FieldId> fields;
 
-    public AnnotatedPos(Position pos, ArrayList<FieldId> fields) {
+    public AnnotatedPos(Position pos, List<FieldId> fields) {
         this.pos = pos;
         this.fields = fields;
     }
 
-    public AnnotatedPos(Position pos, FieldId field) {
-        this.pos = pos;
-        this.fields = new ArrayList<FieldId>();
-        this.fields.add(field);
+    public AnnotatedPos<Position,FieldId> produce() {
+        return new AnnotatedPos<Position,FieldId>(pos, Collections.unmodifiableList(fields));
     }
+
+//    public AnnotatedPos(Position pos, FieldId field) {
+//        this.pos = pos;
+//        this.fields = new ArrayList<FieldId>();
+//        this.fields.add(field);
+//    }
 
     @Override
     public String toString() {

@@ -100,19 +100,57 @@ public class KlugirIndexReader<DocId, TermId, Position, FieldId> {
                 }
             });
 
-            for (int i = 0; i < pList.size() - 1; i++) {
-                AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> p = pList.get(i);
-                AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> p2 = pList.get(i + 1);
-                if (positionComparator.compare(p.pos, p2.pos) == 0) {
-                    p.fields.addAll(p2.fields);
-                    pList.remove(i + 1);
-                }
-            }
+//            for (int i = 0; i < pList.size() - 1; i++) {
+//                AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> p = pList.get(i);
+//                AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> p2 = pList.get(i + 1);
+//                if (positionComparator.compare(p.pos, p2.pos) == 0) {
+//                    p.fields.addAll(p2.fields);
+//                    pList.remove(i + 1);
+//                }
+//            }
+
+            pList = mergePositions(pList);
 
             PostingFieldTerm<TermId, DocId, Position, FieldId> termPosting = new PostingFieldTerm<TermId, DocId, Position, FieldId>(doc, pList);
 
             results.add(termPosting);
         }
+    }
+
+    private List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>> mergePositions(List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>> pList){
+        LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>> newPList = new LinkedList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>>();
+        AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> previous = null;
+        AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> previousBuilder = null;
+
+        for(ListIterator<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>> liter = pList.listIterator(); liter.hasNext();){
+            AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> me = liter.next();
+            if(previous != null){
+                if(positionComparator.compare(previous.pos, me.pos)==0){
+                    if(previousBuilder == null) {
+                        previousBuilder = new AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>(previous.pos, new ArrayList<PostingFieldTerm.TermField<TermId, FieldId>>());
+                        previousBuilder.fields.addAll(previous.fields);
+                    }
+                    previousBuilder.fields.addAll(me.fields);
+                } else {
+                    if(previousBuilder != null) {
+                        newPList.add(previousBuilder.produce());
+                        previousBuilder = null;
+                    }
+                    else newPList.add(previous);
+                    previous = me;
+                }
+            }  else {
+                previous = me;
+            }
+
+
+        }
+        if(previousBuilder != null) {
+            newPList.add(previousBuilder);
+            previousBuilder = null;
+        }
+        else newPList.add(previous);
+        return Collections.unmodifiableList(newPList);
     }
 
     private CachedIteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> setupPostingListHeap(List<KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>> postingLists) {

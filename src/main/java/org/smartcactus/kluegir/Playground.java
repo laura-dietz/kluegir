@@ -43,8 +43,9 @@ public class Playground {
 
 
         final HashSet<Integer> documentWhitelist = new HashSet<Integer>();
-        documentWhitelist.add(68);
-        documentWhitelist.add(83);
+        documentWhitelist.add(0);
+//        documentWhitelist.add(69);
+//        documentWhitelist.add(84);
 
         List<PostingFieldTerm<String, Integer, Integer, String>>  merged = indexReader.getMerged(query, andPolicy, orPolicy, documentWhitelist, 0, 5);
 
@@ -113,8 +114,25 @@ public class Playground {
 
         KluegirStruct<Integer, String, Integer, String> klueg = new KluegirStruct<Integer, String, Integer, String>();
 
+
+        docIdLookup.put("test", 0);
+
+        klueg.initDocument(0);
+        klueg.streamAppend("pi", 0, "text");
+        klueg.streamAppend("pi", 1, "text");
+        klueg.streamAppend("pi", 2, "text");
+        klueg.streamAppend("pi", 3, "text");
+        klueg.streamAppend("pi", 4, "text");
+        klueg.streamAppend("pi", 5, "text");
+        klueg.streamAppend("raspberry", 10, "text");
+        klueg.streamAppend("raspberry", 11, "text");
+        klueg.streamAppend("raspberry", 12, "text");
+        klueg.streamAppend("raspberry", 13, "text");
+        klueg.produceDocument();
+
+
         File[] listFiles = dirFile.listFiles();
-        for (int docId = 0; docId < listFiles.length; docId++) {
+        for (int docId = 1; docId < listFiles.length; docId++) {
             File file = listFiles[docId];
             System.out.println("-- " + file.getName() + " --");
 
