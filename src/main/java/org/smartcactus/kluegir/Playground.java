@@ -22,7 +22,7 @@ public class Playground {
         String dir = "/home/dietz/kbbridge/code/jjd-ede/queripidia/data/documentdump/query-201/";
 
         HashMap<String, Integer> docIdLookup = new HashMap<String, Integer>();
-        KluegirStruct.KluegirReadableIndex<Integer, String,Integer, String> index = traverseDirectory(dir, docIdLookup);
+        KluegirReadableIndex<Integer, String,Integer, String> index = traverseDirectory(dir, docIdLookup);
 
         ArrayList<String> query = new ArrayList<String>();
         query.add("raspberry");
@@ -52,8 +52,12 @@ public class Playground {
 //        orPolicy.add("raspberry");
 //        orPolicy.add("pi");
 
-        // List documents that contain all terms
-        List<PostingFieldTerm<String, Integer, Integer, String>>  merged = index.getMerged(query, andPolicy, orPolicy);
+
+        final HashSet<Integer> documentWhitelist = new HashSet<Integer>();
+        documentWhitelist.add(68);
+        documentWhitelist.add(83);
+
+        List<PostingFieldTerm<String, Integer, Integer, String>>  merged = index.getMerged(query, andPolicy, orPolicy, documentWhitelist);
 
 
 
@@ -74,7 +78,7 @@ public class Playground {
 
     }
 
-    private static KluegirStruct.KluegirReadableIndex traverseDirectory(String dir, HashMap<String,Integer> docIdLookup) throws IOException {
+    private static KluegirReadableIndex traverseDirectory(String dir, HashMap<String,Integer> docIdLookup) throws IOException {
         File dirFile = new File(dir);
 
         if (!dirFile.isDirectory() || dirFile.listFiles() == null) {
@@ -114,7 +118,9 @@ public class Playground {
                 return o1.compareTo(o2);
             }
         };
-        return klueg.produceIndex(intComparator, intComparator);
+        final Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> index = klueg.produceIndexCore();
+        return new KluegirReadableIndex<Integer, String, Integer, String>(index, intComparator, intComparator);
+
     }
 
 
