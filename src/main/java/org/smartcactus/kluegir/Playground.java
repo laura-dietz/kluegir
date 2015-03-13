@@ -22,26 +22,15 @@ public class Playground {
         String dir = "/home/dietz/kbbridge/code/jjd-ede/queripidia/data/documentdump/query-201/";
 
         HashMap<String, Integer> docIdLookup = new HashMap<String, Integer>();
-        KluegirReadableIndex<Integer, String,Integer, String> index = traverseDirectory(dir, docIdLookup);
+        final Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> indexCore = indexFromDirectory(dir, docIdLookup);
+        KlugirIndexReader<Integer, String,Integer, String> indexReader = indexReader(indexCore);
+        KlugirIndexReader<Integer, String,Integer, String> indexReaderWin4 = indexReaderWindow4(indexCore);
 
         ArrayList<String> query = new ArrayList<String>();
         query.add("raspberry");
         query.add("pi");
         query.add("JavaScript");
-//        List<TermPosting<String, Integer, Integer, String>> termPostings = index.get(query);
-//        for(TermPosting<String, Integer, Integer, String> entry : termPostings){
-//            System.out.println("\n\n\n");
-//            System.out.println("entry._1 = " + entry._1);
-//            for(Posting<Integer, Integer, String> p:entry.posting) {
-//                System.out.println("p.doc = " + p.doc);
-//                System.out.print("p.positions = ");
-//                for(AnnotatedPos<Integer, String> pos:p.positions) {
-////                for(KluegirStruct.AnnotatedPos<Integer, String> pos:p.positions) {
-//                    System.out.print(pos.pos + ", ");
-//                }
-//                System.out.println();
-//            }
-//        }
+
 
 
         final HashSet<String> andPolicy = new HashSet<String>();
@@ -57,9 +46,7 @@ public class Playground {
         documentWhitelist.add(68);
         documentWhitelist.add(83);
 
-        List<PostingFieldTerm<String, Integer, Integer, String>>  merged = index.getMerged(query, andPolicy, orPolicy, documentWhitelist);
-
-
+        List<PostingFieldTerm<String, Integer, Integer, String>>  merged = indexReader.getMerged(query, andPolicy, orPolicy, documentWhitelist, 0, 5);
 
         for(PostingFieldTerm<String, Integer, Integer, String> entry : merged){
             System.out.println("\n\n\n");
@@ -67,8 +54,20 @@ public class Playground {
             System.out.print("p.positions = ");
             for(AnnotatedPos<Integer, PostingFieldTerm.TermField<String, String>> p:entry.positions) {
                 System.out.print(p.pos + ":"+p.fields+"  ");
-//                for(PostingFieldTerm.TermField<String, String> termField:p.fields) {
-//                }
+            }
+            System.out.println();
+        }
+
+        System.out.println("============ Now with positions hashed %4 =========");
+
+        List<PostingFieldTerm<String, Integer, Integer, String>>  merged2 = indexReaderWin4.getMerged(query, andPolicy, orPolicy, documentWhitelist, 0, 5);
+
+        for(PostingFieldTerm<String, Integer, Integer, String> entry : merged2){
+            System.out.println("\n\n\n");
+            System.out.println("entry.doc = " + entry.doc);
+            System.out.print("p.positions = ");
+            for(AnnotatedPos<Integer, PostingFieldTerm.TermField<String, String>> p:entry.positions) {
+                System.out.print(p.pos + ":"+p.fields+"  ");
             }
             System.out.println();
         }
@@ -78,7 +77,34 @@ public class Playground {
 
     }
 
-    private static KluegirReadableIndex traverseDirectory(String dir, HashMap<String,Integer> docIdLookup) throws IOException {
+    private static KlugirIndexReader<Integer, String,Integer, String> indexReader(Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> index) {
+        Comparator<Integer> intComparator = new Comparator<Integer>() {
+            public int compare(Integer o1, Integer o2) {
+                return o1.compareTo(o2);
+            }
+        };
+
+        return new KlugirIndexReader<Integer, String, Integer, String>(index, intComparator, intComparator);
+    }
+
+    private static KlugirIndexReader<Integer, String,Integer, String> indexReaderWindow4(Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> index) {
+        Comparator<Integer> intComparator = new Comparator<Integer>() {
+            public int compare(Integer o1, Integer o2) {
+                return o1.compareTo(o2);
+            }
+        };
+
+        Comparator<Integer> hashedComparator = new Comparator<Integer>() {
+            public int compare(Integer o1, Integer o2) {
+                return new Integer(o1 / 4).compareTo(o2 / 4);
+            }
+        };
+
+
+        return new KlugirIndexReader<Integer, String, Integer, String>(index, intComparator, hashedComparator);
+    }
+
+    private static Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> indexFromDirectory(String dir, HashMap<String, Integer> docIdLookup) throws IOException {
         File dirFile = new File(dir);
 
         if (!dirFile.isDirectory() || dirFile.listFiles() == null) {
@@ -101,6 +127,7 @@ public class Playground {
             for (int i = 0; i < tokens.size(); i++) {
                 ClueToken tok = tokens.get(i);
                 klueg.streamAppend(tok.getNormToken(), i, "text");
+                klueg.streamAppend(tok.getCapToken().toLowerCase(), i, "captoken");
                 for (String annotation : tok.getEntityWikiTitles())
                     klueg.streamAppend(annotation, i, "EntityWikiTitles");
                 for (String annotation : tok.getEntityFreebaseMids())
@@ -113,13 +140,8 @@ public class Playground {
             System.out.println("\n\n\n\n");
         }
 
-        Comparator<Integer> intComparator = new Comparator<Integer>() {
-            public int compare(Integer o1, Integer o2) {
-                return o1.compareTo(o2);
-            }
-        };
         final Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> index = klueg.produceIndexCore();
-        return new KluegirReadableIndex<Integer, String, Integer, String>(index, intComparator, intComparator);
+        return index;
 
     }
 

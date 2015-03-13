@@ -10,7 +10,7 @@ import java.util.*;
 * Date: 3/13/15
 * Time: 9:34 AM
 */
-public class KluegirReadableIndex<DocId, TermId, Position, FieldId> {
+public class KlugirIndexReader<DocId, TermId, Position, FieldId> {
 
 //        private final Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index2;
     private final Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index;
@@ -18,7 +18,7 @@ public class KluegirReadableIndex<DocId, TermId, Position, FieldId> {
     private final Comparator<Position> positionComparator;
 
 
-    public KluegirReadableIndex(Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index, Comparator<DocId> docIdComparator, Comparator<Position> positionComparator) {
+    public KlugirIndexReader(Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index, Comparator<DocId> docIdComparator, Comparator<Position> positionComparator) {
         this.index = index;
         this.docIdComparator = docIdComparator;
         this.positionComparator = positionComparator;
@@ -40,6 +40,15 @@ public class KluegirReadableIndex<DocId, TermId, Position, FieldId> {
 
     private IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> movePolicy(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> heap, final List<TermId> query, final Set<TermId> allTermPolicy, final Set<TermId> orTermPolicy) {
         final FilterFun<List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>>> filterFun = new AndOrPolicy<TermId, DocId, Position, FieldId>(query, allTermPolicy, orTermPolicy);
+        final CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>> heapWithFilter =
+                new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
+                        heap, filterFun);
+
+        return heapWithFilter;
+    }
+
+    private IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> minCountPolicy(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> heap, final List<TermId> query, final Set<TermId> terms, int minCover, int minCount) {
+        final FilterFun<List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>>> filterFun = new MinCountPolicy<TermId, DocId, Position, FieldId>(query, terms, minCover, minCount);
         final CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>> heapWithFilter =
                 new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
                         heap, filterFun);
@@ -119,7 +128,7 @@ public class KluegirReadableIndex<DocId, TermId, Position, FieldId> {
                 });
     }
 
-    public List<PostingFieldTerm<TermId, DocId, Position, FieldId>> getMerged(List<TermId> query, Set<TermId> andPolicy, Set<TermId> orPolicy, Set<DocId> docWhitelist) {
+    public List<PostingFieldTerm<TermId, DocId, Position, FieldId>> getMerged(List<TermId> query, Set<TermId> andPolicy, Set<TermId> orPolicy, Set<DocId> docWhitelist, int queryMinCover, int queryMinMatches) {
         final List<KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>> postingLists = get(query);
         IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> iteratorHeap = setupPostingListHeap(postingLists);
 
@@ -129,7 +138,10 @@ public class KluegirReadableIndex<DocId, TermId, Position, FieldId> {
         IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> filteredHeap =docFilteredHeap;
         if(!andPolicy.isEmpty() || orPolicy.isEmpty()) filteredHeap = movePolicy(docFilteredHeap, query, andPolicy, orPolicy);
 
-        final List<PostingFieldTerm<TermId, DocId, Position, FieldId>> mergedList = merged(filteredHeap, query);
+        IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> filtered2Heap =filteredHeap;
+        if(!andPolicy.isEmpty() || orPolicy.isEmpty()) filtered2Heap = minCountPolicy(docFilteredHeap, query, new HashSet<TermId>(query), queryMinCover, queryMinMatches);
+
+        final List<PostingFieldTerm<TermId, DocId, Position, FieldId>> mergedList = merged(filtered2Heap, query);
         return mergedList;
     }
 
@@ -154,6 +166,39 @@ public class KluegirReadableIndex<DocId, TermId, Position, FieldId> {
                 if (orTermPolicy.contains(termId)) foundOr++;
 
                 if (foundOr > 0 || foundAnd >= allTermPolicy.size()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    public static class MinCountPolicy<TermId, DocId, Position, FieldId> implements FilterFun<List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>>> {
+
+        private final List<TermId> query;
+        private final Set<TermId> terms;
+        private final int minCover;
+        private final int minCount;
+
+        public MinCountPolicy(List<TermId> query, Set<TermId> terms, int minCover, int minCount) {
+            this.query = query;
+            this.terms = terms;
+            this.minCover = minCover;
+            this.minCount = minCount;
+        }
+
+        public boolean accept(List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>> postingsforDoc) {
+            int foundCover = 0;
+            int foundCount = 0;
+            for (Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>> pair : postingsforDoc) {
+                final TermId termId = query.get(pair._1);
+                if (terms.contains(termId)) {
+                    foundCover++;
+                    final int matches = pair._2.numMatches;
+                    foundCount += matches;
+                }
+
+                if (foundCover > minCover && foundCount >= minCount) {
                     return true;
                 }
             }

@@ -10,6 +10,7 @@ import java.util.List;
 public class PostingFieldTerm<TermId, DocId, Position, FieldId> {
     public DocId doc;
     public List<AnnotatedPos<Position, TermField<TermId, FieldId>>> positions;
+    public int numMatches;
 
     public static class TermField<TermId, FieldId> {
         public TermId termId;
@@ -52,5 +53,29 @@ public class PostingFieldTerm<TermId, DocId, Position, FieldId> {
     public PostingFieldTerm(DocId doc, List<AnnotatedPos<Position,TermField<TermId, FieldId>>> positions) {
         this.doc = doc;
         this.positions = positions;
+
+        this.numMatches = 0;
+        for (AnnotatedPos<Position,TermField<TermId, FieldId>>p:positions) numMatches += p.fields.size();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        PostingFieldTerm that = (PostingFieldTerm) o;
+
+        if(this.numMatches != that.numMatches) return false;
+        if (doc != null ? !doc.equals(that.doc) : that.doc != null) return false;
+        if (positions != null ? !positions.equals(that.positions) : that.positions != null) return false;
+
+        return true;
+    }
+
+    @Override
+    public int hashCode() {
+        int result = doc != null ? doc.hashCode() : 0;
+        result = 31 * result + (positions != null ? positions.hashCode() : 0);
+        return result;
     }
 }
