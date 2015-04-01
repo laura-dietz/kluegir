@@ -2,6 +2,7 @@ package org.smartcactus.kluegir.heap;
 
 import org.smartcactus.kluegir.struct.Pair;
 
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -18,11 +19,19 @@ public class CachedIteratorHeapWrappedFilter<Elem> implements IteratorHeap<Elem>
         this.filter = filter;
     }
 
+    public Comparator<Elem> getComparator() {
+        return heap.getComparator();
+    }
+
     public List<Pair<Integer, Elem>> advanceMin(){
         List<Pair<Integer, Elem>> minPairs = heap.advanceMin();
         while(minPairs != null && !filter.accept(minPairs)){
             minPairs = heap.advanceMin();
         }
         return minPairs;
+    }
+
+    public void skipLessThan(Elem value) {
+        heap.skipLessThan(value);
     }
 }

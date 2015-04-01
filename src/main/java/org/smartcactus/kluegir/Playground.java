@@ -23,8 +23,8 @@ public class Playground {
 
         HashMap<String, Integer> docIdLookup = new HashMap<String, Integer>();
         final Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> indexCore = indexFromDirectory(dir, docIdLookup);
-        KlugirIndexReader<Integer, String,Integer, String> indexReader = indexReader(indexCore);
-        KlugirIndexReader<Integer, String,Integer, String> indexReaderWin4 = indexReaderWindow4(indexCore);
+        KluegirIndexReader<Integer, String,Integer, String> indexReader = indexReader(indexCore);
+        KluegirIndexReader<Integer, String,Integer, String> indexReaderWin4 = indexReaderWindow4(indexCore);
 
         ArrayList<String> query = new ArrayList<String>();
         query.add("raspberry");
@@ -44,10 +44,10 @@ public class Playground {
 
         final HashSet<Integer> documentWhitelist = new HashSet<Integer>();
         documentWhitelist.add(0);
-//        documentWhitelist.add(69);
-//        documentWhitelist.add(84);
+        documentWhitelist.add(69);
+        documentWhitelist.add(84);
 
-        List<PostingFieldTerm<String, Integer, Integer, String>>  merged = indexReader.getMerged(query, andPolicy, orPolicy, documentWhitelist, 0, 5);
+        List<PostingFieldTerm<String, Integer, Integer, String>>  merged = indexReader.getMerged(query, andPolicy, orPolicy, documentWhitelist, 0, 0);
 
         for(PostingFieldTerm<String, Integer, Integer, String> entry : merged){
             System.out.println("\n\n\n");
@@ -78,17 +78,17 @@ public class Playground {
 
     }
 
-    private static KlugirIndexReader<Integer, String,Integer, String> indexReader(Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> index) {
+    private static KluegirIndexReader<Integer, String,Integer, String> indexReader(Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> index) {
         Comparator<Integer> intComparator = new Comparator<Integer>() {
             public int compare(Integer o1, Integer o2) {
                 return o1.compareTo(o2);
             }
         };
 
-        return new KlugirIndexReader<Integer, String, Integer, String>(index, intComparator, intComparator);
+        return new KluegirIndexReader<Integer, String, Integer, String>(index, intComparator, intComparator);
     }
 
-    private static KlugirIndexReader<Integer, String,Integer, String> indexReaderWindow4(Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> index) {
+    private static KluegirIndexReader<Integer, String,Integer, String> indexReaderWindow4(Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> index) {
         Comparator<Integer> intComparator = new Comparator<Integer>() {
             public int compare(Integer o1, Integer o2) {
                 return o1.compareTo(o2);
@@ -102,7 +102,7 @@ public class Playground {
         };
 
 
-        return new KlugirIndexReader<Integer, String, Integer, String>(index, intComparator, hashedComparator);
+        return new KluegirIndexReader<Integer, String, Integer, String>(index, intComparator, hashedComparator);
     }
 
     private static Map<String, ArrayList<PostingFieldTerm<String, Integer, Integer, String>>> indexFromDirectory(String dir, HashMap<String, Integer> docIdLookup) throws IOException {
@@ -144,8 +144,8 @@ public class Playground {
             klueg.initDocument(docId);
             for (int i = 0; i < tokens.size(); i++) {
                 ClueToken tok = tokens.get(i);
-                klueg.streamAppend(tok.getNormToken(), i, "text");
-                klueg.streamAppend(tok.getCapToken().toLowerCase(), i, "captoken");
+                klueg.streamAppend(tok.getNlpToken(), i, "text");
+                klueg.streamAppend(tok.getIrToken().toLowerCase(), i, "captoken");
                 for (String annotation : tok.getEntityWikiTitles())
                     klueg.streamAppend(annotation, i, "EntityWikiTitles");
                 for (String annotation : tok.getEntityFreebaseMids())

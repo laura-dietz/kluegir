@@ -78,4 +78,13 @@ public class PostingFieldTerm<TermId, DocId, Position, FieldId> {
         result = 31 * result + (positions != null ? positions.hashCode() : 0);
         return result;
     }
+
+    @Override
+    public String toString() {
+        return "PostingFieldTerm{" +
+                "doc=" + doc +
+//                ", positions=" + positions +
+//                ", numMatches=" + numMatches +
+                '}';
+    }
 }

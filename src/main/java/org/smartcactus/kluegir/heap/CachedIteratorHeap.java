@@ -21,6 +21,10 @@ public class CachedIteratorHeap<Elem> implements IteratorHeap<Elem>{
         this.cmp = cmp;
     }
 
+    public Comparator<Elem> getComparator(){
+        return cmp;
+    }
+
     public List<Pair<Integer, Elem>> advanceMin() {
         Elem min = null;
         int minIdx = 0;
@@ -53,8 +57,21 @@ public class CachedIteratorHeap<Elem> implements IteratorHeap<Elem>{
             }
         }
 
-
+        System.out.println("minAdvance to "+minElements);
         return minElements;
+    }
+
+    public void skipLessThan(Elem value){
+        for(int i=0; i<iterators.size(); i++){
+            if(iterators.get(i).hasNext()) {
+
+                while (cmp.compare( iterators.get(i).head, value) < 0) {
+                    System.out.println("skipping for "+value+". stepping over "+iterators.get(i).head);
+                    iterators.get(i).next();
+                }
+            }
+        }
+
     }
 
 

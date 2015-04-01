@@ -10,15 +10,14 @@ import java.util.*;
 * Date: 3/13/15
 * Time: 9:34 AM
 */
-public class KlugirIndexReader<DocId, TermId, Position, FieldId> {
+public class KluegirIndexReader<DocId, TermId, Position, FieldId> {
 
-//        private final Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index2;
     private final Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index;
     private final Comparator<DocId> docIdComparator;
     private final Comparator<Position> positionComparator;
 
 
-    public KlugirIndexReader(Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index, Comparator<DocId> docIdComparator, Comparator<Position> positionComparator) {
+    public KluegirIndexReader(Map<TermId, ArrayList<PostingFieldTerm<TermId, DocId, Position, FieldId>>> index, Comparator<DocId> docIdComparator, Comparator<Position> positionComparator) {
         this.index = index;
         this.docIdComparator = docIdComparator;
         this.positionComparator = positionComparator;
@@ -40,29 +39,65 @@ public class KlugirIndexReader<DocId, TermId, Position, FieldId> {
 
     private IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> movePolicy(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> heap, final List<TermId> query, final Set<TermId> allTermPolicy, final Set<TermId> orTermPolicy) {
         final FilterFun<List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>>> filterFun = new AndOrPolicy<TermId, DocId, Position, FieldId>(query, allTermPolicy, orTermPolicy);
-        final CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>> heapWithFilter =
-                new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
-                        heap, filterFun);
 
-        return heapWithFilter;
+        return new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
+                heap, filterFun);
     }
 
     private IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> minCountPolicy(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> heap, final List<TermId> query, final Set<TermId> terms, int minCover, int minCount) {
         final FilterFun<List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>>> filterFun = new MinCountPolicy<TermId, DocId, Position, FieldId>(query, terms, minCover, minCount);
-        final CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>> heapWithFilter =
-                new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
-                        heap, filterFun);
 
-        return heapWithFilter;
+        return new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
+                heap, filterFun);
     }
 
-    private IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> docWhitelistPolicy(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> heap, final Set<DocId> docWhitelist) {
+    private IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> docWhitelistPolicy1(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> heap, final Set<DocId> docWhitelist) {
         final FilterFun<List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>>> filterFun = new DocumentFilter<TermId, DocId, Position, FieldId>(docWhitelist);
-        final CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>> heapWithFilter =
-                new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
-                        heap, filterFun);
 
-        return heapWithFilter;
+        return new CachedIteratorHeapWrappedFilter<PostingFieldTerm<TermId, DocId, Position, FieldId>>(
+                heap, filterFun);
+    }
+
+    private IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> docWhitelistPolicy(final IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> heap, final Set<DocId> docWhitelist) {
+        final ArrayList<DocId> whiteOrdered = new ArrayList<DocId>();
+        whiteOrdered.addAll(docWhitelist);
+        Collections.sort(whiteOrdered, docIdComparator);
+        final CachedIterator<DocId> whiteIterator = new CachedIterator<DocId>(whiteOrdered.iterator());
+
+        final FilterFun<List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>>> filterFun = new DocumentFilter<TermId, DocId, Position, FieldId>(docWhitelist);
+
+        return new IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>>(){
+            public Comparator<PostingFieldTerm<TermId, DocId, Position, FieldId>> getComparator() {
+                return heap.getComparator();
+            }
+
+            public List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>> advanceMin() {
+                if(whiteIterator.hasNext()){
+                    final DocId value = whiteIterator.next();
+                    final PostingFieldTerm<TermId, DocId, Position, FieldId> wrappedValue = wrapValue(value);
+                    heap.skipLessThan(wrappedValue);
+                    final List<Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>>> min = heap.advanceMin();
+                    System.out.println("docSkip returning min = " + min);
+                    return min;
+                } else {
+                    return null;
+                }
+            }
+
+            private PostingFieldTerm<TermId, DocId, Position, FieldId> wrapValue(DocId value) {
+                return new PostingFieldTerm<TermId, DocId, Position, FieldId>(value, Collections.<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>>emptyList());
+            }
+
+            public void skipLessThan(PostingFieldTerm<TermId, DocId, Position, FieldId> value) {
+                // move the document iterator forward too
+                while(getComparator().compare(wrapValue(whiteIterator.head), value)<0) {
+                    System.out.println("Move whiteIterator over " + whiteIterator.head);
+                    whiteIterator.next();
+                }
+                heap.skipLessThan(value);
+            }
+        };
+
     }
 
     private List<PostingFieldTerm<TermId, DocId, Position, FieldId>> merged(IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> iteratorHeap, List<TermId> query) {
@@ -79,19 +114,12 @@ public class KlugirIndexReader<DocId, TermId, Position, FieldId> {
             DocId doc = minEntries.get(0)._2.doc;
 
 
-//            Step2: Transcode all term-postinglists to include term with field information
             List<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>> pList = new ArrayList<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>>();
             for (Pair<Integer, PostingFieldTerm<TermId, DocId, Position, FieldId>> minEntry : minEntries) {
 
-                // recode postingList to include term as well as fields
                 PostingFieldTerm<TermId, DocId, Position, FieldId> posting = minEntry._2;
                 pList.addAll(posting.positions);
-//                    for (AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> p : posting.positions) {
-
-//                        ArrayList<PostingFieldTerm.TermField<TermId, FieldId>> termFields = p.fields;
-//                        pList.add(new AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>(p.pos, termFields));
-                    // todo merge-sort
-//                    }
+                // todo merge-sort
             }
 
             Collections.sort(pList, new Comparator<AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>>>() {
@@ -100,19 +128,8 @@ public class KlugirIndexReader<DocId, TermId, Position, FieldId> {
                 }
             });
 
-//            for (int i = 0; i < pList.size() - 1; i++) {
-//                AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> p = pList.get(i);
-//                AnnotatedPos<Position, PostingFieldTerm.TermField<TermId, FieldId>> p2 = pList.get(i + 1);
-//                if (positionComparator.compare(p.pos, p2.pos) == 0) {
-//                    p.fields.addAll(p2.fields);
-//                    pList.remove(i + 1);
-//                }
-//            }
-
             pList = mergePositions(pList);
-
             PostingFieldTerm<TermId, DocId, Position, FieldId> termPosting = new PostingFieldTerm<TermId, DocId, Position, FieldId>(doc, pList);
-
             results.add(termPosting);
         }
     }
@@ -167,19 +184,24 @@ public class KlugirIndexReader<DocId, TermId, Position, FieldId> {
     }
 
     public List<PostingFieldTerm<TermId, DocId, Position, FieldId>> getMerged(List<TermId> query, Set<TermId> andPolicy, Set<TermId> orPolicy, Set<DocId> docWhitelist, int queryMinCover, int queryMinMatches) {
+        // initialize iteratorHeap
         final List<KeyList<TermId, PostingFieldTerm<TermId, DocId, Position, FieldId>>> postingLists = get(query);
         IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> iteratorHeap = setupPostingListHeap(postingLists);
 
+        // document id whitelist
         IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> docFilteredHeap =  iteratorHeap;
         if(!docWhitelist.isEmpty()) docFilteredHeap = docWhitelistPolicy(iteratorHeap, docWhitelist);
 
-        IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> filteredHeap =docFilteredHeap;
-        if(!andPolicy.isEmpty() || orPolicy.isEmpty()) filteredHeap = movePolicy(docFilteredHeap, query, andPolicy, orPolicy);
+        // filter documents that lack requires terms
+        IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> andOrFilteredHeap =docFilteredHeap;
+        if(!andPolicy.isEmpty() || orPolicy.isEmpty()) andOrFilteredHeap = movePolicy(docFilteredHeap, query, andPolicy, orPolicy);
 
-        IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> filtered2Heap =filteredHeap;
-        if(!andPolicy.isEmpty() || orPolicy.isEmpty()) filtered2Heap = minCountPolicy(docFilteredHeap, query, new HashSet<TermId>(query), queryMinCover, queryMinMatches);
+        // filter documents without enough matches (cover and count)
+        IteratorHeap<PostingFieldTerm<TermId, DocId, Position, FieldId>> minCountFilteredHeap =andOrFilteredHeap;
+        if(queryMinCover>0 && queryMinMatches>0) minCountFilteredHeap = minCountPolicy(andOrFilteredHeap, query, new HashSet<TermId>(query), queryMinCover, queryMinMatches);
 
-        final List<PostingFieldTerm<TermId, DocId, Position, FieldId>> mergedList = merged(filtered2Heap, query);
+        // merge term-wise posting lists into one
+        final List<PostingFieldTerm<TermId, DocId, Position, FieldId>> mergedList = merged(minCountFilteredHeap, query);
         return mergedList;
     }
 
